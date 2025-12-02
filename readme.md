@@ -17,7 +17,9 @@ static HS_NOINLINE void Original()
 static HS_NOINLINE void Relpaced()
 {
     std::cout << "Relpaced" << std::endl;
-    Original(); // Call the original function (a recursive call will invoke the original function, incrementing the Original count by one each time)
+
+    // Call the original function (recursive logic is already handled internally)
+    Original(); 
 }
 
 int main()
@@ -71,4 +73,5 @@ bool success = HSLL::HSHook::Remove((void*)original_function_address);
 2. **The original function and the replacement function must use exactly the same calling convention.**
 3. **The target function must be marked with `HS_NOINLINE` or the compiler-specific `noinline` attribute to prevent inlining optimizations.**
 4. **Functions with too short a body (insufficient instruction space) may cause Hook failure.**
+
 5. **If the function contains internal jumps or code that references the function's starting address, exceptions may occur after hooking.**
