@@ -1,7 +1,7 @@
 # HS_Hook - x86 32位轻量级钩子库
 
 ## 概述
-一个专用于 x86 32 位架构的轻量级钩子库，支持在 Unix/Linux 与 Windows 系统上运行，并兼容 MSVC、GCC 和 Clang 编译器。
+一个用于 x86 32 位架构的轻量级钩子库，支持在 Unix/Linux 与 Windows 系统上运行，并兼容 MSVC、GCC 和 Clang 编译器。
 
 ## 快速示例
 ```cpp
@@ -17,7 +17,9 @@ static HS_NOINLINE void Original()
 static HS_NOINLINE void Relpaced()
 {
     std::cout << "Relpaced" << std::endl;
-    Original(); // 调用原函数(递归调用将调用原函数,每经过依次Original计数加1)
+
+    // 调用原函数(内部已处理递归逻辑)
+    Original();
 }
 
 int main()
@@ -71,5 +73,5 @@ bool success = HSLL::HSHook::Remove((void*)原函数地址);
 2. **原函数与替换函数必须使用完全相同的调用约定**：
 3. **目标函数必须使用 `HS_NOINLINE` 或相应编译器的 `noinline` 属性，防止内联优化**：
 4. **函数体过短（指令空间不足）可能导致 Hook 失败**：
-
 5. **若函数内部存在跳转或引用到函数起始地址的代码，Hook 后可能引发异常**：
+
