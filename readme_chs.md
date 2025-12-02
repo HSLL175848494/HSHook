@@ -39,7 +39,7 @@ int main()
     }
 
     std::cout << "---------------------" << std::endl;
-    Original(); // 输出 "Original"
+    Original(); // 输出 "Original""\r\n
 
     std::cout << "---------------------" << std::endl;
     Relpaced(); // 输出 "Relpaced"\r\n"Original"\r\n
@@ -71,4 +71,5 @@ bool success = HSLL::HSHook::Remove((void*)原函数地址);
 2. **原函数与替换函数必须使用完全相同的调用约定**：
 3. **目标函数必须使用 `HS_NOINLINE` 或相应编译器的 `noinline` 属性，防止内联优化**：
 4. **函数体过短（指令空间不足）可能导致 Hook 失败**：
+
 5. **若函数内部存在跳转或引用到函数起始地址的代码，Hook 后可能引发异常**：
