@@ -33,19 +33,27 @@ namespace HSLL
 	{
 	public:
 		static bool ParseCode(const ptrAny pIns, HSInsInfo& stInsInfo);
-		static bool CallJmpConvert(const HSInsInfo& stInfoBefore, unsignedP uPosBefore, ptrU8 pInsBefore,
-			HSInsInfo& stInfoAfter, unsignedP uPosAfter, ptrU8 pInsAfter);
+
+		static bool CallJmpConvert(const HSInsInfo& stInfoBefore, unsigned32 uPosBefore,
+			ptrU8 pInsBefore, HSInsInfo& stInfoAfter, unsigned32 uPosAfter, ptrU8 pInsAfter);
 
 	private:
-		static void InitializeInsInfo(HSInsInfo& stInsInfo);
-		static signedP ParsePrefixes(const ptrU8 pCode, signedP& sLen, signedP& sOperandSize);
-		static signedP ParseREXPrefix(const ptrU8 pCode, signedP& sLen, signedP& sOperandSize);
-		static bool ParseModRM(const ptrU8 pCode, signedP& sLen, HSInsInfo& stInsInfo, signedP sOperandSize);
-		static void ParseImmediate(const HSOpcodeInfo& stOpcodeInfo, signedP& sLen, signedP sOperandSize, HSInsInfo& pInfo);
-		static bool MatchOpcode(const ptrU8 pCode, signedP& sLen, signedP& sOpcodeIndex, signedP sOperandSize);
-		static void SetRelocationInfo(HSInsInfo& stInsInfo, const HSOpcodeInfo& stOpcodeInfo, signedP& sLen, signedP sOperandSize);
+
+		static bool CheckBounds(signed32 uCurrent, signed32 sIncrement, signed32 uMaxLen);
+
+		static signed32 ParsePrefixes(const ptrU8 pCode, signed32& sLen, signed32& sOperandSize);
+
+		static bool MatchOpcode(const ptrU8 pCode, signed32& sLen, signed32& sOpcodeIndex, signed32 sOperandSize);
+
+		static void SetRelocationInfo(HSInsInfo& stInsInfo, const HSOpcodeInfo& stOpcodeInfo, signed32& sLen, signed32 sOperandSize);
+
 		static void SetInstructionType(HSInsInfo& stInsInfo, const HSOpcodeInfo& stOpcodeInfo);
-		static bool CheckBounds(signedP uCurrent, signedP sIncrement, signedP uMaxLen);
+
+		static bool ParseModRM(const ptrU8 pCode, signed32& sLen, HSInsInfo& stInsInfo, signed32 sOperandSize);
+
+		static void ParseImmediate(const HSOpcodeInfo& stOpcodeInfo, signed32& sLen, signed32 sOperandSize, HSInsInfo& pInfo);
+
+		static void InitializeInsInfo(HSInsInfo& stInsInfo);
 	};
 }
 

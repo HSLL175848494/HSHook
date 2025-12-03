@@ -181,7 +181,7 @@ namespace HSLL
 {
 	enum HSMemProtection
 	{
-		HSMemProtection_None = 0,
+		HSMemProtection_None = PROT_NONE,
 		HSMemProtection_Read = PROT_READ,
 		HSMemProtection_ReadWrite = PROT_READ | PROT_WRITE,
 		HSMemProtection_Execute = PROT_EXEC,
@@ -189,43 +189,55 @@ namespace HSLL
 		HSMemProtection_ReadWriteExecute = PROT_READ | PROT_WRITE | PROT_EXEC
 	};
 
-	bool HSHook::SetProt(ptrAny pBuf, unsigned32 uSize, unsigned32 uProt)
+	bool HSHook::SetProt(ptrAny pBuf, unsignedP uSize, unsigned32 uProt)
 	{
 		if (pBuf == nullptr || uSize == 0)
 		{
 			return false;
 		}
 
-		unsignedP uPagesize = sysconf(_SC_PAGESIZE);
-
-		if (uPagesize == (unsignedP)-1)
+		long uPageSize = sysconf(_SC_PAGESIZE);
+		if (uPageSize == -1)
 		{
 			return false;
 		}
 
-		ptrU8 pAlignedAddr = (ptrU8)((unsignedP)pBuf & ~(uPagesize - 1));
+		ptrU8 pAlignedAddr = (ptrU8)((unsignedP)pBuf & ~(uPageSize - 1));
 		ptrU8 pEnd = (ptrU8)pBuf + uSize;
-		unsignedP uNewSize = pEnd - pAlignedAddr;
+		ptrU8 pAlignedEnd = (ptrU8)(((unsignedP)pEnd + uPageSize - 1) & ~(uPageSize - 1));
+		unsignedP uNewSize = pAlignedEnd - pAlignedAddr;
+
+		if (uNewSize == 0)
+		{
+			return false;
+		}
+
 		return mprotect(pAlignedAddr, uNewSize, uProt) == 0;
 	}
 
-	ptrAny HSHook::MemAlloc(unsigned32 uSize, unsigned32 uProt)
+	ptrAny HSHook::MemAlloc(unsignedP uSize, unsigned32 uProt)
 	{
 		if (uSize == 0)
 		{
 			return nullptr;
 		}
 
-		unsigned32 uTotalSize = uSize + 4;
-		ptrAny pBuf = mmap(nullptr, uTotalSize, uProt, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		const unsignedP uHeaderSize = sizeof(unsignedP);
+		unsignedP uTotalSize = uSize + uHeaderSize;
 
+		if (uTotalSize < uSize)
+		{
+			return nullptr;
+		}
+
+		ptrAny pBuf = mmap(nullptr, uTotalSize, uProt, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 		if (pBuf == MAP_FAILED)
 		{
 			return nullptr;
 		}
 
-		*((ptrU32)pBuf) = uTotalSize;
-		return (ptrAny)((ptrS8)pBuf + 4);
+		*((unsignedP*)pBuf) = uTotalSize;
+		return (ptrAny)((ptrU8)pBuf + uHeaderSize);
 	}
 
 	bool HSHook::MemFree(ptrAny pBuf)
@@ -235,8 +247,15 @@ namespace HSLL
 			return false;
 		}
 
-		ptrAny pActualAddr = (ptrAny)((ptrS8)pBuf - 4);
-		unsigned32 uTotalSize = *(ptrU32)pActualAddr;
+		const unsignedP uHeaderSize = sizeof(unsignedP);
+		ptrAny pActualAddr = (ptrAny)((ptrU8)pBuf - uHeaderSize);
+		unsignedP uTotalSize = *((unsignedP*)pActualAddr);
+
+		if (uTotalSize < uHeaderSize)
+		{
+			return false;
+		}
+
 		return munmap(pActualAddr, uTotalSize) == 0;
 	}
 }
@@ -339,6 +358,7 @@ namespace HSLL
 
 		if (!GetBackupIns(pSrc, pBackupInfo, uNum))
 		{
+			MemFree(pBuf);
 			return false;
 		}
 

@@ -1,7 +1,7 @@
 # HS_Hook - x86 32位轻量级钩子库
 
 ## 概述
-一个用于 x86 32 位架构的轻量级钩子库，支持在 Unix/Linux 与 Windows 系统上运行，并兼容 MSVC、GCC 和 Clang 编译器。
+一个专用于 x86 32 位架构的轻量级钩子库，支持在 Unix/Linux 与 Windows 系统上运行，并兼容 MSVC、GCC 和 Clang 编译器。
 
 ## 快速示例
 ```cpp
@@ -11,43 +11,41 @@
 // 声明为 noinline，防止编译器内联优化导致 Hook 失败
 static HS_NOINLINE void Original()
 {
-	std::cout << "Original" << std::endl;
+    std::cout << "Original" << std::endl;
 }
 
 static HS_NOINLINE void Relpaced()
 {
-	std::cout << "Relpaced" << std::endl;
-
-	// 调用原函数(内部已处理递归逻辑)
-	Original();
+    std::cout << "Relpaced" << std::endl;
+    Original(); // 调用原函数(递归调用将调用原函数,每经过依次Original计数加1)
 }
 
 int main()
 {
-	if (!HSLL::HSHook::Install((void*)Original, (void*)Relpaced)) // 安装Original->Relpaced
-	{
-		return -1;
-	}
+    if (!HSLL::HSHook::Install((void*)Original, (void*)Relpaced)) // 安装Original->Relpaced
+    {
+        return -1;
+    }
 
-	std::cout << "---------------------" << std::endl;
-	Original(); // 输出 "Relpaced\r\nOriginal\r\n"
+    std::cout << "---------------------" << std::endl;
+    Original(); // 输出 "Relpaced"\r\n"Original"\r\n
 
-	std::cout << "---------------------" << std::endl;
-	Relpaced(); // 输出 "Relpaced\r\nRelpaced\r\nOriginal\r\n"
+    std::cout << "---------------------" << std::endl;
+    Relpaced(); // 输出 "Relpaced"\r\n"Relpaced"\r\n"Original"\r\n
 
-	if (!HSLL::HSHook::Remove((void*)Original)) // 卸载Original->Relpaced
-	{
-		return -1;
-	}
+    if (!HSLL::HSHook::Remove((void*)Original)) // 卸载Original->Relpaced
+    {
+        return -1;
+    }
 
-	std::cout << "---------------------" << std::endl;
-	Original(); // 输出 "Original"
+    std::cout << "---------------------" << std::endl;
+    Original(); // 输出 "Original""\r\n
 
-	std::cout << "---------------------" << std::endl;
-	Relpaced(); // 输出 "Relpaced\r\nOriginal\r\n"
+    std::cout << "---------------------" << std::endl;
+    Relpaced(); // 输出 "Relpaced"\r\n"Original"\r\n
 
-	std::cout << "---------------------" << std::endl;
-	return 0;
+    std::cout << "---------------------" << std::endl;
+    return 0;
 }
 ```
 
@@ -71,8 +69,6 @@ bool success = HSLL::HSHook::Remove((void*)原函数地址);
 ## 注意事项
 1. **`Install` 与 `Remove` 操作非线程安全，调用时必须确保原函数不会被执行**
 2. **原函数与替换函数必须使用完全相同的调用约定**：
-3. **应尽可能为目标函数添加 `HS_NOINLINE` 或相应编译器的 `noinline` 属性，防止内联优化引起 Hook 失败**：
+3. **目标函数必须使用 `HS_NOINLINE` 或相应编译器的 `noinline` 属性，防止内联优化**：
 4. **函数体过短（指令空间不足）可能导致 Hook 失败**：
-5. **若函数内部存在跳转或引用到函数起始地址（指令替换空间）的代码，Hook 后可能引发异常**：
-
-
+5. **若函数内部存在跳转或引用到函数起始地址的代码，Hook 后可能引发异常**：
