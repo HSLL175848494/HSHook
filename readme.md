@@ -1,14 +1,14 @@
 # HS_Hook - x86 32-bit Lightweight Hook Library
 
 ## Overview
-A lightweight hook library specifically designed for the x86 32-bit architecture, capable of running on Unix/Linux and Windows systems, and compatible with MSVC, GCC, and Clang compilers.
+A lightweight, third-party dependency-free hook library designed for the x86 32-bit architecture. It supports cross-platform operation (Unix-like and Windows) and is compatible with mainstream compilers (MSVC, GCC, Clang).
 
 ## Quick Example
 ```cpp
 #include "HS_Hook.h"
 #include <iostream>
 
-// Declared as noinline to prevent compiler inlining optimization from causing Hook failure
+// Use HS_NOINLINE to prevent compiler inlining optimization, ensuring the Hook takes effect
 static HS_NOINLINE void Original()
 {
     std::cout << "Original" << std::endl;
@@ -17,32 +17,36 @@ static HS_NOINLINE void Original()
 static HS_NOINLINE void Relpaced()
 {
     std::cout << "Relpaced" << std::endl;
-    Original(); // Call the original function (a recursive call will invoke the original function, incrementing the Original count by one each time)
+
+    // Call the original function (recursive calls are handled internally by the library)
+    Original();
 }
 
 int main()
 {
-    if (!HSLL::HSHook::Install((void*)Original, (void*)Relpaced)) // Install Original->Relpaced
+    // Install the hook, replacing Original with Relpaced
+    if (!HSLL::HSHook::Install((void*)Original, (void*)Relpaced))
     {
         return -1;
     }
 
     std::cout << "---------------------" << std::endl;
-    Original(); // Outputs "Relpaced"\r\n"Original"\r\n
+    Original(); // Outputs "Relpaced\nOriginal\n"
 
     std::cout << "---------------------" << std::endl;
-    Relpaced(); // Outputs "Relpaced"\r\n"Relpaced"\r\n"Original"\r\n
+    Relpaced(); // Outputs "Relpaced\nRelpaced\nOriginal\n"
 
-    if (!HSLL::HSHook::Remove((void*)Original)) // Uninstall Original->Relpaced
+    // Remove the hook
+    if (!HSLL::HSHook::Remove((void*)Original))
     {
         return -1;
     }
 
     std::cout << "---------------------" << std::endl;
-    Original(); // Outputs "Original""\r\n
+    Original(); // Outputs "Original"
 
     std::cout << "---------------------" << std::endl;
-    Relpaced(); // Outputs "Relpaced"\r\n"Original"\r\n
+    Relpaced(); // Outputs "Relpaced\nOriginal\n"
 
     std::cout << "---------------------" << std::endl;
     return 0;
@@ -54,10 +58,7 @@ int main()
 ### Installing a Hook
 ```cpp
 // Returns true on success, false on failure
-bool success = HSLL::HSHook::Install(
-    (void*)original_function_address,    // Function to be hooked
-    (void*)new_function_address          // Function used for replacement
-);
+bool success = HSLL::HSHook::Install((void*)original_function_address, (void*)new_function_address);
 ```
 
 ### Removing a Hook
@@ -66,9 +67,9 @@ bool success = HSLL::HSHook::Install(
 bool success = HSLL::HSHook::Remove((void*)original_function_address);
 ```
 
-## Important Notes
-1. **`Install` and `Remove` operations are not thread-safe. Ensure the original function is not being executed when calling them.**
-2. **The original function and the replacement function must use exactly the same calling convention.**
-3. **The target function must be marked with `HS_NOINLINE` or the compiler-specific `noinline` attribute to prevent inlining optimizations.**
-4. **Functions with too short a body (insufficient instruction space) may cause Hook failure.**
-5. **If the function contains internal jumps or code that references the function's starting address, exceptions may occur after hooking.**
+## Notes
+1. **The `Install` and `Remove` functions themselves are not thread-safe. Concurrent calls from multiple threads are not allowed. Also, ensure the target function is not being executed when performing these operations.**
+2. **The original function and the replacement function must use the same calling convention.**
+3. **If you are also the author of the original function, it is advisable to add the `HS_NOINLINE` attribute or the compiler-specific `noinline` attribute to the target function to prevent inlining optimizations that may cause the Hook to fail.**
+4. **Functions with very short bodies (insufficient instruction space) may cause the Hook to fail.**
+5. **If the function contains jumps or code that references the function's starting address, installing a Hook may cause exceptions.**
