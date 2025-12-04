@@ -22,6 +22,12 @@ namespace HSLL
 
 		static bool Remove(ptrAny pSrc);
 
+		template<class T>
+		static T* Original(T* pSrc)
+		{
+			return (T*)FindHookSrc(pSrc);
+		}
+
 	private:
 		static bool SetProt(ptrAny pMem, unsigned32 uSize, unsigned32 uProt);
 
@@ -36,29 +42,18 @@ namespace HSLL
 
 		static bool GetFixedIns(ptrAny pIns, HSInsInfo* pInfo, unsigned32 uNum, ptrAny pFixedIns, HSInsInfo* pFixedInfo);
 
-		static void FillJmp(ptrAny pBuf, ptrAny pDst);
-
-		static void FillHook(ptrAny pBuf, ptrAny pDst, ptrAny uSrc);
-
-		static void FillFixed(ptrAny pBuf, ptrAny pFixed, unsigned32 uSize);
-
-		static void FillBackup(ptrAny pBuf, ptrAny pBackup, unsigned32 uSize);
+		static void WriteJmp(ptrAny pBuf, ptrAny pDst);
 
 	private:
 		static bool IsHookFull();
 
-		static void SetHook(ptrAny pSrc, ptrAny pMem, ptrAny pBackup, unsigned32 uSize);
+		static void StoreHook(ptrAny pSrc, ptrAny pMem, ptrAny pBackup, unsigned32 uSize);
+
+		static ptrAny FindHookSrc(ptrAny pSrc);
 
 		static HSStaticContext* FindHook(ptrAny pSrc);
 
 		static HSStaticContext* RemoveHook(ptrAny pSrc);
-
-	private:
-		static void HS_CDECL SetThreadContext(ptrAny pSrc, ptrAny pRet);
-
-		static ptrAny HS_CDECL FindThreadContext(ptrAny pSrc);
-
-		static ptrAny HS_CDECL RemoveThreadContext(ptrAny pSrc);
 	};
 }
 

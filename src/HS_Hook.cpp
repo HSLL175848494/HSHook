@@ -3,14 +3,15 @@
 
 #include "HS_Decoder.h"
 #include "HS_Context.h"
+#include "HS_RWLock.hpp"
 #include <string.h>
 
 namespace HSLL
 {
 	struct HSStaticContext
 	{
-		ptrAny uMem;
-		ptrAny uCover;
+		ptrAny pMem;
+		ptrAny pCover;
 		unsigned32 uSize;
 	};
 
@@ -19,6 +20,7 @@ namespace HSLL
 		ptrAny pRet;
 	};
 
+	static HSSpinRWLock g_oHookLock;
 	static HSContextManager<HSStaticContext> g_oStaticManager;
 	thread_local HSContextManager<HSRuntimeContext> g_oRuntimeManager;
 
@@ -96,9 +98,22 @@ namespace HSLL
 		return g_oStaticManager.IsFull();
 	}
 
-	void HSHook::SetHook(ptrAny pSrc, ptrAny pMem, ptrAny pBackup, unsigned32 uSize)
+	void HSHook::StoreHook(ptrAny pSrc, ptrAny pMem, ptrAny pBackup, unsigned32 uSize)
 	{
 		g_oStaticManager.SetContext((unsignedP)pSrc, HSStaticContext{ pMem, pBackup, uSize });
+	}
+
+	ptrAny HSHook::FindHookSrc(ptrAny pSrc)
+	{
+		HSReadLockGuard oLock(g_oHookLock);
+		HSStaticContext* pContext = FindHook(pSrc);
+
+		if (!pContext)
+		{
+			return nullptr;
+		}
+
+		return pContext->pMem;
 	}
 
 	HSStaticContext* HSHook::FindHook(ptrAny pSrc)
@@ -109,21 +124,6 @@ namespace HSLL
 	HSStaticContext* HSHook::RemoveHook(ptrAny pSrc)
 	{
 		return g_oStaticManager.RemoveContext((unsignedP)pSrc);
-	}
-
-	void HSHook::SetThreadContext(ptrAny pSrc, ptrAny pRet)
-	{
-		g_oRuntimeManager.SetContext((unsignedP)pSrc, HSRuntimeContext{ pRet });
-	}
-
-	ptrAny HSHook::FindThreadContext(ptrAny pSrc)
-	{
-		return g_oRuntimeManager.FindContext((unsignedP)pSrc);
-	}
-
-	ptrAny HSHook::RemoveThreadContext(ptrAny pSrc)
-	{
-		return g_oRuntimeManager.RemoveContext((unsignedP)pSrc)->pRet;
 	}
 }
 
@@ -263,68 +263,10 @@ namespace HSLL
 
 namespace HSLL
 {
-	const constexpr unsigned8 HS_HOOK_CODE[] =
-	{
-		0x60,                     // pushad 
-		0x9C,                     // pushfd 
-		0x68,0x00,0x00,0x00,0x00, // push key 
-		0xE8,0x00,0x00,0x00,0x00, // call FindThreadContext 
-		0x83,0xC4,0x04,           // add esp,4
-		0x85,0xC0,                // test eax,eax 
-		0x75,0x39,                // jne ToSrc 
-		0xFF,0x74,0x24,0x24,      // push dword ptr ss:[esp+0x24] 
-		0x68,0x00,0x00,0x00,0x00, // push key 
-		0xE8,0x00,0x00,0x00,0x00, // call SetThreadContext 
-		0x83,0xC4,0x08,           // add esp,8
-		0xC7,0x44,0x24,0x24,      // mov dword ptr [esp+24h], ToRet
-		0x00,0x00,0x00,0x00,      // ...
-		0x9D,                     // popfd 
-		0x61,                     // popad 
-		0xE9,0x00,0x00,0x00,0x00, // jmp ReplaceFunction 
-		0x83,0xEC,0x04,           // sub esp,4 (ToRet) 
-		0x60,                     // pushad 
-		0x9C,                     // pushfd 
-		0x68,0x00,0x00,0x00,0x00, // push key 
-		0xE8,0x00,0x00,0x00,0x00, // call ResetThreadContext 
-		0x83,0xC4,0x04,           // add esp,4
-		0x89,0x44,0x24,0x24,      // mov dword ptr ss:[esp+0x24], eax  
-		0x9D,                     // popfd 
-		0x61,                     // popad 
-		0xC3,                     // ret 
-		0x9D,                     // popfd (ToSrc) 
-		0x61,                     // popad 
-	};
-
-	void HSHook::FillJmp(ptrAny pBuf, ptrAny pDst)
+	void HSHook::WriteJmp(ptrAny pBuf, ptrAny pDst)
 	{
 		*(ptrU8)pBuf = 0xE9;
 		*(ptrS32)((ptrU8)pBuf + 1) = (signed32)pDst - (signed32)pBuf - 5;
-	}
-
-	void HSHook::FillHook(ptrAny pBuf, ptrAny pDst, ptrAny pSrc)
-	{
-		memcpy(pBuf, HS_HOOK_CODE, sizeof(HS_HOOK_CODE));
-
-		ptrU8 pPtr = (ptrU8)pBuf;
-		*(ptrU32)(pPtr + 3) = (unsigned32)pSrc;
-		*(ptrS32)(pPtr + 8) = (signed32)((unsigned32)&HSHook::FindThreadContext - ((unsigned32)pBuf + 12));
-		*(ptrS32)(pPtr + 24) = (unsigned32)pSrc;
-		*(ptrS32)(pPtr + 29) = (signed32)((unsigned32)&HSHook::SetThreadContext - ((unsigned32)pBuf + 33));
-		*(ptrU32)(pPtr + 40) = (unsigned32)pBuf + 51;
-		*(ptrS32)(pPtr + 47) = (signed32)((unsigned32)pDst - ((unsigned32)pBuf + 51));
-		*(ptrS32)(pPtr + 57) = (unsigned32)pSrc;
-		*(ptrS32)(pPtr + 62) = (signed32)((unsigned32)&HSHook::RemoveThreadContext - ((unsigned32)pBuf + 66));
-		return;
-	}
-
-	void HSHook::FillFixed(ptrAny pBuf, ptrAny pFixed, unsigned32 uSize)
-	{
-		memcpy(pBuf, pFixed, uSize);
-	}
-
-	void HSHook::FillBackup(ptrAny pBuf, ptrAny pBackup, unsigned32 uSize)
-	{
-		memcpy(pBuf, pBackup, uSize);
 	}
 
 	bool HSHook::Install(ptrAny pSrc, ptrAny pDst)
@@ -333,6 +275,8 @@ namespace HSLL
 		{
 			return false;
 		}
+
+		HSWriteLockGuard oLock(g_oHookLock);
 
 		if (IsHookFull())
 		{
@@ -347,9 +291,7 @@ namespace HSLL
 		unsigned32 uNum;
 		HSInsInfo pFixedInfo[64];
 		HSInsInfo pBackupInfo[64];
-
-		constexpr unsigned32 HOOK_BUFFER_SIZE = 4096;
-		ptrAny pBuf = MemAlloc(HOOK_BUFFER_SIZE, HSMemProtection_ReadWriteExecute);
+		ptrU8 pBuf = (ptrU8)MemAlloc(4096, HSMemProtection_ReadWriteExecute);
 
 		if (pBuf == nullptr)
 		{
@@ -362,9 +304,7 @@ namespace HSLL
 			return false;
 		}
 
-		ptrU8 pFixed = (ptrU8)pBuf + sizeof(HS_HOOK_CODE);
-
-		if (!GetFixedIns(pSrc, pBackupInfo, uNum, pFixed, pFixedInfo))
+		if (!GetFixedIns(pSrc, pBackupInfo, uNum, pBuf, pFixedInfo))
 		{
 			MemFree(pBuf);
 			return false;
@@ -379,16 +319,16 @@ namespace HSLL
 			return false;
 		}
 
-		FillHook(pBuf, pDst, pSrc);
-		FillJmp(pFixed + uFixedSize, (ptrU8)pSrc + uBackUpSize);
-		FillBackup(pFixed + uFixedSize + 5, pSrc, uBackUpSize);
-		FillJmp(pSrc, pBuf);
-		SetHook(pSrc, pBuf, pFixed + uFixedSize + 5, uBackUpSize);
+		WriteJmp(pBuf + uFixedSize, (ptrU8)pSrc + uBackUpSize);
+		memcpy(pBuf + uFixedSize + 5, pSrc, uBackUpSize);
+		WriteJmp(pSrc, pDst);
+		StoreHook(pSrc, pBuf, pBuf + uFixedSize + 5, uBackUpSize);
 		return true;
 	}
 
 	bool HSHook::Remove(ptrAny pSrc)
 	{
+		HSWriteLockGuard oLock(g_oHookLock);
 		HSStaticContext* pContext = FindHook(pSrc);
 
 		if (pContext == nullptr)
@@ -396,8 +336,8 @@ namespace HSLL
 			return false;
 		}
 
-		memcpy(pSrc, pContext->uCover, pContext->uSize);
-		MemFree(pContext->uMem);
+		memcpy(pSrc, pContext->pCover, pContext->uSize);
+		MemFree(pContext->pMem);
 		RemoveHook(pSrc);
 		return true;
 	}
